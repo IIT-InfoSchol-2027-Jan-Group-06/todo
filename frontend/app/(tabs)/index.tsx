@@ -1,98 +1,187 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useThemeColor } from '@/hooks/use-theme-color';
+
+type Todo = {
+  id: string;
+  title: string;
+  completed: boolean;
+};
+
+let nextId = 1;
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">hello</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const [todos, setTodos] = useState<Todo[]>([]);
+  const [input, setInput] = useState('');
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? 'light'];
+  const tint = useThemeColor({}, 'tint');
+  const surface = useThemeColor({ light: '#F2F3F5', dark: '#1D1F20' }, 'background');
+
+  const remaining = todos.filter((todo) => !todo.completed).length;
+
+  const addTodo = () => {
+    const title = input.trim();
+    if (!title) {
+      return;
+    }
+    setTodos((prev) => [{ id: String(nextId++), title, completed: false }, ...prev]);
+    setInput('');
+  };
+
+  const toggleTodo = (id: string) => {
+    setTodos((prev) => prev.map((todo) => (todo.id === id ? { ...todo, completed: !todo.completed } : todo)));
+  };
+
+  const deleteTodo = (id: string) => {
+    setTodos((prev) => prev.filter((todo) => todo.id !== id));
+  };
+
+  const addButtonColor = colorScheme === 'dark' ? colors.background : '#fff';
+
+  return (
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <ThemedView style={styles.container}>
+        <ThemedView style={styles.header}>
+          <ThemedText type="title">Todos</ThemedText>
+          <ThemedText style={{ color: colors.icon }}>
+            {remaining} of {todos.length} remaining
+          </ThemedText>
+        </ThemedView>
+
+        {todos.length === 0 ? (
+          <ThemedView style={styles.empty}>
+            <IconSymbol name="checklist" size={48} color={colors.icon} />
+            <ThemedText style={{ color: colors.icon }}>No todos yet. Add one below.</ThemedText>
+          </ThemedView>
+        ) : (
+          <ScrollView contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
+            {todos.map((todo) => (
+              <ThemedView key={todo.id} style={[styles.todoRow, { backgroundColor: surface }]}>
+                <Pressable
+                  onPress={() => toggleTodo(todo.id)}
+                  hitSlop={8}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: todo.completed }}
+                  accessibilityLabel={`${todo.completed ? 'Unmark' : 'Mark'} ${todo.title} as ${todo.completed ? 'incomplete' : 'complete'}`}>
+                  <IconSymbol
+                    name={todo.completed ? 'checkmark.circle.fill' : 'circle'}
+                    size={26}
+                    color={todo.completed ? tint : colors.icon}
+                  />
+                </Pressable>
+                <ThemedText
+                  style={[styles.todoTitle, todo.completed && { color: colors.icon, textDecorationLine: 'line-through' }]}
+                  numberOfLines={2}>
+                  {todo.title}
+                </ThemedText>
+                <Pressable
+                  onPress={() => deleteTodo(todo.id)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Delete ${todo.title}`}>
+                  <IconSymbol name="trash" size={22} color={colors.icon} />
+                </Pressable>
+              </ThemedView>
+            ))}
+          </ScrollView>
+        )}
+
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ThemedView style={styles.inputBar}>
+            <TextInput
+              value={input}
+              onChangeText={setInput}
+              onSubmitEditing={addTodo}
+              placeholder="Add a new todo"
+              placeholderTextColor={colors.icon}
+              returnKeyType="done"
+              style={[styles.input, { color: colors.text, backgroundColor: surface }]}
+            />
+            <Pressable
+              onPress={addTodo}
+              accessibilityRole="button"
+              accessibilityLabel="Add todo"
+              style={[styles.addButton, { backgroundColor: tint }]}>
+              <IconSymbol name="plus" size={26} color={addButtonColor} />
+            </Pressable>
+          </ThemedView>
+        </KeyboardAvoidingView>
       </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  safeArea: {
+    flex: 1,
+  },
+  container: {
+    flex: 1,
+  },
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 12,
+    gap: 4,
+  },
+  list: {
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    gap: 10,
+  },
+  empty: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  todoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
+    padding: 14,
+    borderRadius: 12,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  todoTitle: {
+    flex: 1,
+    fontSize: 16,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  inputBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 16,
+  },
+  input: {
+    flex: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+  },
+  addButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
