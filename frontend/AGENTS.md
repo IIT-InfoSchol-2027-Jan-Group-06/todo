@@ -5,7 +5,8 @@
     --Search a Todo Item
     --Deadline + alarm
     --Upload an image to a Todo Item
-    --Save todo items via a Node.js API, backed by H2
+    --Save todo items via a Node.js API, backed by H2 or sql lite
+    
 
 
 
