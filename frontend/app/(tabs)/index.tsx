@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -50,11 +49,10 @@ const formatDeadline = (deadline: number) =>
 
 export default function HomeScreen() {
   const [todos, setTodos] = useState<Todo[]>([]);
-  const [input, setInput] = useState('');
 
   const [query, setQuery] = useState('');
 
-  const [isAdding, setIsAdding] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Todo | null>(null);
 
   const todosRef = useRef(todos);
@@ -159,28 +157,25 @@ export default function HomeScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasPendingDeadline]);
 
-  const addTodo = () => {
-    const title = input.trim();
-    if (!title) {
+  const addTodo = (title: string, deadline: number | null) => {
+    const trimmed = title.trim();
+    if (!trimmed) {
       return;
     }
-    setTodos((prev) => [
-      { id: String(nextId++), title, completed: false, deadline: null, alarmed: false, notificationId: null },
-      ...prev,
-    ]);
-    setInput('');
-  };
-
-  const submitTodo = () => {
-    addTodo();
-    Keyboard.dismiss();
-    setIsAdding(false);
-  };
-
-  const cancelAdding = () => {
-    Keyboard.dismiss();
-    setIsAdding(false);
-    setInput('');
+    const todo: Todo = {
+      id: String(nextId++),
+      title: trimmed,
+      completed: false,
+      deadline,
+      alarmed: false,
+      notificationId: null,
+    };
+    setTodos((prev) => [todo, ...prev]);
+    if (deadline) {
+      scheduleForTodo(todo).then((notificationId) => {
+        setTodos((prev) => prev.map((t) => (t.id === todo.id ? { ...t, notificationId } : t)));
+      });
+    }
   };
 
   const toggleTodo = (id: string) => {
@@ -330,55 +325,32 @@ export default function HomeScreen() {
           </ScrollView>
         )}
 
-        {isAdding ? (
-          <ThemedView style={styles.inputBar}>
-            <Pressable
-              onPress={cancelAdding}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="Cancel adding todo"
-              style={styles.cancelButton}>
-              <IconSymbol name="xmark" size={22} color={colors.icon} />
-            </Pressable>
-            <TextInput
-              autoFocus
-              value={input}
-              onChangeText={setInput}
-              onSubmitEditing={submitTodo}
-              placeholder="Add a new todo"
-              placeholderTextColor={colors.icon}
-              returnKeyType="done"
-              style={[styles.input, { color: colors.text, backgroundColor: surface }]}
-            />
-            <Pressable
-              onPress={submitTodo}
-              accessibilityRole="button"
-              accessibilityLabel="Add todo"
-              style={[styles.addButton, { backgroundColor: tint }]}>
-              <IconSymbol name="checkmark" size={26} color={addButtonColor} />
-            </Pressable>
-          </ThemedView>
-        ) : (
-          <Pressable
-            onPress={() => setIsAdding(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Add a new todo"
-            style={[styles.fab, { backgroundColor: tint }]}>
-            <IconSymbol name="plus" size={28} color={addButtonColor} />
-          </Pressable>
-        )}
+        <Pressable
+          onPress={() => setCreating(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Add a new todo"
+          style={[styles.fab, { backgroundColor: tint }]}>
+          <IconSymbol name="plus" size={28} color={addButtonColor} />
+        </Pressable>
         </ThemedView>
       </KeyboardAvoidingView>
 
       <TodoEditModal
-        visible={editing !== null}
+        visible={creating || editing !== null}
+        mode={editing ? 'edit' : 'create'}
         title={editing?.title ?? ''}
         deadline={editing?.deadline ?? null}
-        onCancel={() => setEditing(null)}
+        onCancel={() => {
+          setCreating(false);
+          setEditing(null);
+        }}
         onSave={(title, deadline) => {
           if (editing) {
             saveTodo(editing.id, title, deadline);
+          } else {
+            addTodo(title, deadline);
           }
+          setCreating(false);
           setEditing(null);
         }}
       />
@@ -455,30 +427,5 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
-  },
-  inputBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 16,
-  },
-  cancelButton: {
-    padding: 4,
-  },
-  input: {
-    flex: 1,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-  },
-  addButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

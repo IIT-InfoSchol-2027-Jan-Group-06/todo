@@ -1,6 +1,14 @@
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useEffect, useState } from 'react';
-import { Modal, Platform, Pressable, StyleSheet, TextInput } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+} from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -11,6 +19,7 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 
 type Props = {
   visible: boolean;
+  mode: 'create' | 'edit';
   title: string;
   deadline: number | null;
   onCancel: () => void;
@@ -26,7 +35,7 @@ const formatDeadline = (deadline: Date) =>
     minute: '2-digit',
   });
 
-export function TodoEditModal({ visible, title: initialTitle, deadline: initialDeadline, onCancel, onSave }: Props) {
+export function TodoEditModal({ visible, mode, title: initialTitle, deadline: initialDeadline, onCancel, onSave }: Props) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const tint = useThemeColor({}, 'tint');
@@ -58,12 +67,12 @@ export function TodoEditModal({ visible, title: initialTitle, deadline: initialD
     return d;
   };
 
-  const onChangePicker = (mode: 'date' | 'time') => (event: DateTimePickerEvent, pick?: Date) => {
+  const onChangePicker = (pickerMode: 'date' | 'time') => (event: DateTimePickerEvent, pick?: Date) => {
     if (Platform.OS === 'android') {
       setPicker(null);
     }
     if (event.type !== 'dismissed' && pick) {
-      setDeadline((prev) => (mode === 'date' ? mergeDate(prev, pick) : mergeTime(prev, pick)));
+      setDeadline((prev) => (pickerMode === 'date' ? mergeDate(prev, pick) : mergeTime(prev, pick)));
     }
   };
 
@@ -73,97 +82,103 @@ export function TodoEditModal({ visible, title: initialTitle, deadline: initialD
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onCancel} transparent>
-      <ThemedView style={styles.overlay}>
-        <ThemedView style={styles.sheet}>
-          <ThemedView style={styles.header}>
-            <ThemedText type="subtitle">Edit Todo</ThemedText>
-            <Pressable onPress={onCancel} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close editor">
-              <IconSymbol name="xmark" size={22} color={colors.icon} />
-            </Pressable>
-          </ThemedView>
+      <KeyboardAvoidingView
+        style={styles.overlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+          <ThemedView style={styles.sheet}>
+            <ThemedView style={styles.header}>
+              <ThemedText type="subtitle">{mode === 'create' ? 'New Todo' : 'Edit Todo'}</ThemedText>
+              <Pressable onPress={onCancel} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close editor">
+                <IconSymbol name="xmark" size={22} color={colors.icon} />
+              </Pressable>
+            </ThemedView>
 
-          <ThemedText style={styles.label}>Title</ThemedText>
-          <TextInput
-            autoFocus
-            value={title}
-            onChangeText={setTitle}
-            placeholder="Todo title"
-            placeholderTextColor={colors.icon}
-            returnKeyType="done"
-            style={[styles.input, { color: colors.text, backgroundColor: surface }]}
-          />
+            <ThemedText style={styles.label}>Title</ThemedText>
+            <TextInput
+              autoFocus
+              value={title}
+              onChangeText={setTitle}
+              placeholder="Todo title"
+              placeholderTextColor={colors.icon}
+              returnKeyType="done"
+              style={[styles.input, { color: colors.text, backgroundColor: surface }]}
+            />
 
-          <ThemedText style={styles.label}>Deadline</ThemedText>
-          <ThemedView style={[styles.deadlineRow, { backgroundColor: surface }]}>
-            <Pressable
-              onPress={() => setPicker((p) => (p === 'date' ? null : 'date'))}
-              accessibilityRole="button"
-              accessibilityLabel="Set date"
-              style={[styles.pickerButton, { backgroundColor: tint }]}>
-              <ThemedText style={[styles.pickerButtonText, { color: colors.background }]}>Date</ThemedText>
-            </Pressable>
-            <Pressable
-              onPress={() => setPicker((p) => (p === 'time' ? null : 'time'))}
-              accessibilityRole="button"
-              accessibilityLabel="Set time"
-              style={[styles.pickerButton, { backgroundColor: tint }]}>
-              <ThemedText style={[styles.pickerButtonText, { color: colors.background }]}>Time</ThemedText>
-            </Pressable>
-            {deadline && (
+            <ThemedText style={styles.label}>Deadline</ThemedText>
+            <ThemedView style={[styles.deadlineRow, { backgroundColor: surface }]}>
               <Pressable
-                onPress={() => setDeadline(null)}
-                hitSlop={8}
+                onPress={() => setPicker((p) => (p === 'date' ? null : 'date'))}
                 accessibilityRole="button"
-                accessibilityLabel="Clear deadline">
-                <ThemedText style={{ color: danger }}>Clear</ThemedText>
+                accessibilityLabel="Set date"
+                style={[styles.pickerButton, { backgroundColor: tint }]}>
+                <ThemedText style={[styles.pickerButtonText, { color: colors.background }]}>Date</ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={() => setPicker((p) => (p === 'time' ? null : 'time'))}
+                accessibilityRole="button"
+                accessibilityLabel="Set time"
+                style={[styles.pickerButton, { backgroundColor: tint }]}>
+                <ThemedText style={[styles.pickerButtonText, { color: colors.background }]}>Time</ThemedText>
+              </Pressable>
+              {deadline && (
+                <Pressable
+                  onPress={() => setDeadline(null)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear deadline">
+                  <ThemedText style={{ color: danger }}>Clear</ThemedText>
+                </Pressable>
+              )}
+            </ThemedView>
+            <ThemedText style={[styles.deadlinePreview, { color: deadline ? colors.text : colors.icon }]}>
+              {deadline ? formatDeadline(deadline) : 'No deadline set'}
+            </ThemedText>
+
+            {picker === 'date' && (
+              <DateTimePicker
+                value={deadline ?? new Date()}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                onChange={onChangePicker('date')}
+              />
+            )}
+            {picker === 'time' && (
+              <DateTimePicker
+                value={deadline ?? new Date()}
+                mode="time"
+                is24Hour
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={onChangePicker('time')}
+              />
+            )}
+            {Platform.OS === 'ios' && picker && (
+              <Pressable onPress={() => setPicker(null)} accessibilityRole="button" accessibilityLabel="Done picking">
+                <ThemedText style={{ color: tint, textAlign: 'center', paddingVertical: 8 }}>Done</ThemedText>
               </Pressable>
             )}
-          </ThemedView>
-          <ThemedText style={[styles.deadlinePreview, { color: deadline ? colors.text : colors.icon }]}>
-            {deadline ? formatDeadline(deadline) : 'No deadline set'}
-          </ThemedText>
 
-          {picker === 'date' && (
-            <DateTimePicker
-              value={deadline ?? new Date()}
-              mode="date"
-              display={Platform.OS === 'ios' ? 'inline' : 'default'}
-              onChange={onChangePicker('date')}
-            />
-          )}
-          {picker === 'time' && (
-            <DateTimePicker
-              value={deadline ?? new Date()}
-              mode="time"
-              is24Hour
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={onChangePicker('time')}
-            />
-          )}
-          {Platform.OS === 'ios' && picker && (
-            <Pressable onPress={() => setPicker(null)} accessibilityRole="button" accessibilityLabel="Done picking">
-              <ThemedText style={{ color: tint, textAlign: 'center', paddingVertical: 8 }}>Done</ThemedText>
-            </Pressable>
-          )}
-
-          <ThemedView style={styles.actions}>
-            <Pressable
-              onPress={onCancel}
-              accessibilityRole="button"
-              accessibilityLabel="Cancel editing"
-              style={[styles.actionButton, { backgroundColor: surface }]}>
-              <ThemedText>Cancel</ThemedText>
-            </Pressable>
-            <Pressable
-              onPress={save}
-              accessibilityRole="button"
-              accessibilityLabel="Save todo"
-              style={[styles.actionButton, { backgroundColor: tint }]}>
-              <ThemedText style={{ color: colors.background, fontWeight: '600' }}>Save</ThemedText>
-            </Pressable>
+            <ThemedView style={styles.actions}>
+              <Pressable
+                onPress={onCancel}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+                style={[styles.actionButton, { backgroundColor: surface }]}>
+                <ThemedText>Cancel</ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={save}
+                accessibilityRole="button"
+                accessibilityLabel={mode === 'create' ? 'Add todo' : 'Save todo'}
+                style={[styles.actionButton, { backgroundColor: tint }]}>
+                <ThemedText style={{ color: colors.background, fontWeight: '600' }}>
+                  {mode === 'create' ? 'Add' : 'Save'}
+                </ThemedText>
+              </Pressable>
+            </ThemedView>
           </ThemedView>
-        </ThemedView>
-      </ThemedView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -171,6 +186,9 @@ export function TodoEditModal({ visible, title: initialTitle, deadline: initialD
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'flex-end',
   },
   sheet: {
