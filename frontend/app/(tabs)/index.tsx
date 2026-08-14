@@ -7,8 +7,11 @@ import {
   ScrollView,
   StyleSheet,
   TextInput,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
+import { Image } from 'expo-image';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -21,6 +24,7 @@ type Todo = {
   id: string;
   title: string;
   completed: boolean;
+  imageUri?: string | null;
 };
 
 let nextId = 1;
@@ -75,6 +79,22 @@ export default function HomeScreen() {
     setTodos((prev) => prev.filter((todo) => todo.id !== id));
   };
 
+  const attachImage = async (id: string) => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.5,
+    });
+    const uri = result.canceled ? undefined : result.assets[0]?.uri;
+    if (uri) {
+      setTodos((prev) => prev.map((todo) => (todo.id === id ? { ...todo, imageUri: uri } : todo)));
+    }
+  };
+
+  const removeImage = (id: string) => {
+    setTodos((prev) => prev.map((todo) => (todo.id === id ? { ...todo, imageUri: null } : todo)));
+  };
+
   const addButtonColor = colorScheme === 'dark' ? colors.background : '#fff';
 
   return (
@@ -115,30 +135,54 @@ export default function HomeScreen() {
           <ScrollView contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
             {visible.map((todo) => (
               <ThemedView key={todo.id} style={[styles.todoRow, { backgroundColor: surface }]}>
-                <Pressable
-                  onPress={() => toggleTodo(todo.id)}
-                  hitSlop={8}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: todo.completed }}
-                  accessibilityLabel={`${todo.completed ? 'Unmark' : 'Mark'} ${todo.title} as ${todo.completed ? 'incomplete' : 'complete'}`}>
-                  <IconSymbol
-                    name={todo.completed ? 'checkmark.circle.fill' : 'circle'}
-                    size={26}
-                    color={todo.completed ? tint : colors.icon}
-                  />
-                </Pressable>
-                <ThemedText
-                  style={[styles.todoTitle, todo.completed && { color: colors.icon, textDecorationLine: 'line-through' }]}
-                  numberOfLines={2}>
-                  {todo.title}
-                </ThemedText>
-                <Pressable
-                  onPress={() => deleteTodo(todo.id)}
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Delete ${todo.title}`}>
-                  <IconSymbol name="trash" size={22} color={colors.icon} />
-                </Pressable>
+                <View style={styles.todoTopRow}>
+                  <Pressable
+                    onPress={() => toggleTodo(todo.id)}
+                    hitSlop={8}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: todo.completed }}
+                    accessibilityLabel={`${todo.completed ? 'Unmark' : 'Mark'} ${todo.title} as ${todo.completed ? 'incomplete' : 'complete'}`}>
+                    <IconSymbol
+                      name={todo.completed ? 'checkmark.circle.fill' : 'circle'}
+                      size={26}
+                      color={todo.completed ? tint : colors.icon}
+                    />
+                  </Pressable>
+                  <ThemedText
+                    style={[styles.todoTitle, todo.completed && { color: colors.icon, textDecorationLine: 'line-through' }]}
+                    numberOfLines={2}>
+                    {todo.title}
+                  </ThemedText>
+                  {todo.completed && (
+                    <Pressable
+                      onPress={() => attachImage(todo.id)}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Attach an image to ${todo.title}`}>
+                      <IconSymbol name="photo" size={22} color={tint} />
+                    </Pressable>
+                  )}
+                  <Pressable
+                    onPress={() => deleteTodo(todo.id)}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Delete ${todo.title}`}>
+                    <IconSymbol name="trash" size={22} color={colors.icon} />
+                  </Pressable>
+                </View>
+                {todo.imageUri ? (
+                  <View style={styles.imageContainer}>
+                    <Image source={{ uri: todo.imageUri }} style={styles.todoImage} contentFit="cover" />
+                    <Pressable
+                      onPress={() => removeImage(todo.id)}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove image from ${todo.title}`}
+                      style={styles.removeImage}>
+                      <IconSymbol name="xmark.circle.fill" size={22} color={colors.icon} />
+                    </Pressable>
+                  </View>
+                ) : null}
               </ThemedView>
             ))}
           </ScrollView>
@@ -226,15 +270,33 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   todoRow: {
+    gap: 10,
+    padding: 14,
+    borderRadius: 12,
+  },
+  todoTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    padding: 14,
-    borderRadius: 12,
   },
   todoTitle: {
     flex: 1,
     fontSize: 16,
+  },
+  imageContainer: {
+    alignSelf: 'flex-start',
+  },
+  todoImage: {
+    width: 140,
+    height: 140,
+    borderRadius: 8,
+  },
+  removeImage: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: '#fff',
+    borderRadius: 11,
   },
   fab: {
     position: 'absolute',
