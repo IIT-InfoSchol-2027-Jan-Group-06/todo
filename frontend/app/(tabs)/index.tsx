@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Keyboard,
   KeyboardAvoidingView,
@@ -8,22 +8,45 @@ import {
   StyleSheet,
   TextInput,
 } from 'react-native';
+import * as Notifications from 'expo-notifications';
+import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { TodoEditModal } from '@/components/todo-edit-modal';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
+
 type Todo = {
   id: string;
   title: string;
   completed: boolean;
+  deadline: number | null;
+  alarmed: boolean;
+  notificationId: string | null;
 };
 
 let nextId = 1;
+
+const formatDeadline = (deadline: number) =>
+  new Date(deadline).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 
 export default function HomeScreen() {
   const [todos, setTodos] = useState<Todo[]>([]);
@@ -32,12 +55,23 @@ export default function HomeScreen() {
   const [query, setQuery] = useState('');
 
   const [isAdding, setIsAdding] = useState(false);
+  const [editing, setEditing] = useState<Todo | null>(null);
 
+  const todosRef = useRef(todos);
+  todosRef.current = todos;
+
+  const alarmPlayer = useAudioPlayer(require('../../assets/sounds/alarm.wav'));
+  const ringPlayer = useAudioPlayer(require('../../assets/sounds/ring.wav'));
+
+  useEffect(() => {
+    setAudioModeAsync({ playsInSilentMode: true });
+  }, []);
 
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
   const tint = useThemeColor({}, 'tint');
   const surface = useThemeColor({ light: '#F2F3F5', dark: '#1D1F20' }, 'background');
+  const danger = colorScheme === 'dark' ? '#FF6B6B' : '#D0342C';
 
   const remaining = todos.filter((todo) => !todo.completed).length;
 
@@ -46,12 +80,94 @@ export default function HomeScreen() {
   const q = query.trim().toLowerCase();
   const visible = todos.filter((todo) => todo.title.toLowerCase().includes(q));
 
+  const isOverdue = (todo: Todo) => !!todo.deadline && !todo.completed && todo.deadline <= Date.now();
+
+  const playAlarm = () => {
+    alarmPlayer.seekTo(0);
+    alarmPlayer.play();
+  };
+
+  const playRing = () => {
+    ringPlayer.seekTo(0);
+    ringPlayer.play();
+  };
+
+  const ensureNotificationPermission = async (): Promise<boolean> => {
+    const settings = await Notifications.getPermissionsAsync();
+    if (settings.granted) {
+      return true;
+    }
+    const request = await Notifications.requestPermissionsAsync();
+    return request.granted;
+  };
+
+  const scheduleForTodo = async (todo: Todo): Promise<string | null> => {
+    if (!todo.deadline) {
+      return null;
+    }
+    const granted = await ensureNotificationPermission();
+    if (!granted) {
+      return null;
+    }
+    try {
+      return await Notifications.scheduleNotificationAsync({
+        content: {
+          title: 'Todo deadline reached',
+          body: `"${todo.title}" is not completed yet.`,
+          sound: 'default',
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: todo.deadline,
+        },
+      });
+    } catch {
+      return null;
+    }
+  };
+
+  const cancelNotification = (id: string | null) => {
+    if (id) {
+      Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
+    }
+  };
+
+  // Poll every second for any uncompleted todo that just passed its deadline.
+  const hasPendingDeadline = todos.some((todo) => todo.deadline && !todo.completed && !todo.alarmed);
+
+  useEffect(() => {
+    if (!hasPendingDeadline) {
+      return;
+    }
+    const interval = setInterval(() => {
+      const now = Date.now();
+      let fired = false;
+      const next = todosRef.current.map((todo) => {
+        if (todo.deadline && !todo.completed && !todo.alarmed && todo.deadline <= now) {
+          fired = true;
+          return { ...todo, alarmed: true };
+        }
+        return todo;
+      });
+      if (fired) {
+        todosRef.current = next;
+        setTodos(next);
+        playAlarm();
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasPendingDeadline]);
+
   const addTodo = () => {
     const title = input.trim();
     if (!title) {
       return;
     }
-    setTodos((prev) => [{ id: String(nextId++), title, completed: false }, ...prev]);
+    setTodos((prev) => [
+      { id: String(nextId++), title, completed: false, deadline: null, alarmed: false, notificationId: null },
+      ...prev,
+    ]);
     setInput('');
   };
 
@@ -68,10 +184,65 @@ export default function HomeScreen() {
   };
 
   const toggleTodo = (id: string) => {
-    setTodos((prev) => prev.map((todo) => (todo.id === id ? { ...todo, completed: !todo.completed } : todo)));
+    const target = todos.find((todo) => todo.id === id);
+    if (!target) {
+      return;
+    }
+
+    const nowCompleted = !target.completed;
+
+    if (nowCompleted) {
+      cancelNotification(target.notificationId);
+      playRing();
+      setTodos((prev) =>
+        prev.map((todo) =>
+          todo.id === id ? { ...todo, completed: true, notificationId: null, alarmed: false } : todo,
+        ),
+      );
+      return;
+    }
+
+    setTodos((prev) =>
+      prev.map((todo) => (todo.id === id ? { ...todo, completed: false, alarmed: false } : todo)),
+    );
+    if (target.deadline) {
+      scheduleForTodo({ ...target, completed: false }).then((notificationId) => {
+        setTodos((prev) => prev.map((todo) => (todo.id === id ? { ...todo, notificationId } : todo)));
+      });
+    }
+  };
+
+  const saveTodo = async (id: string, newTitle: string, newDeadline: number | null) => {
+    const target = todos.find((todo) => todo.id === id);
+    if (!target) {
+      return;
+    }
+
+    cancelNotification(target.notificationId);
+
+    let notificationId: string | null = null;
+    if (!target.completed && newDeadline) {
+      notificationId = await scheduleForTodo({ ...target, title: newTitle, deadline: newDeadline });
+    }
+
+    setTodos((prev) =>
+      prev.map((todo) =>
+        todo.id === id
+          ? {
+              ...todo,
+              title: newTitle,
+              deadline: newDeadline,
+              notificationId,
+              alarmed: newDeadline && newDeadline > Date.now() ? false : todo.alarmed,
+            }
+          : todo,
+      ),
+    );
   };
 
   const deleteTodo = (id: string) => {
+    const target = todos.find((todo) => todo.id === id);
+    cancelNotification(target?.notificationId ?? null);
     setTodos((prev) => prev.filter((todo) => todo.id !== id));
   };
 
@@ -127,11 +298,26 @@ export default function HomeScreen() {
                     color={todo.completed ? tint : colors.icon}
                   />
                 </Pressable>
-                <ThemedText
-                  style={[styles.todoTitle, todo.completed && { color: colors.icon, textDecorationLine: 'line-through' }]}
-                  numberOfLines={2}>
-                  {todo.title}
-                </ThemedText>
+                <ThemedView style={styles.todoBody}>
+                  <ThemedText
+                    style={[styles.todoTitle, todo.completed && { color: colors.icon, textDecorationLine: 'line-through' }]}
+                    numberOfLines={2}>
+                    {todo.title}
+                  </ThemedText>
+                  {todo.deadline && (
+                    <ThemedText style={[styles.deadlineText, { color: isOverdue(todo) ? danger : colors.icon }]}>
+                      {isOverdue(todo) ? 'Overdue · ' : 'Due '}
+                      {formatDeadline(todo.deadline)}
+                    </ThemedText>
+                  )}
+                </ThemedView>
+                <Pressable
+                  onPress={() => setEditing(todo)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Edit ${todo.title}`}>
+                  <IconSymbol name="pencil" size={20} color={colors.icon} />
+                </Pressable>
                 <Pressable
                   onPress={() => deleteTodo(todo.id)}
                   hitSlop={8}
@@ -183,6 +369,19 @@ export default function HomeScreen() {
         )}
         </ThemedView>
       </KeyboardAvoidingView>
+
+      <TodoEditModal
+        visible={editing !== null}
+        title={editing?.title ?? ''}
+        deadline={editing?.deadline ?? null}
+        onCancel={() => setEditing(null)}
+        onSave={(title, deadline) => {
+          if (editing) {
+            saveTodo(editing.id, title, deadline);
+          }
+          setEditing(null);
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -232,9 +431,15 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 12,
   },
-  todoTitle: {
+  todoBody: {
     flex: 1,
+    gap: 2,
+  },
+  todoTitle: {
     fontSize: 16,
+  },
+  deadlineText: {
+    fontSize: 12,
   },
   fab: {
     position: 'absolute',

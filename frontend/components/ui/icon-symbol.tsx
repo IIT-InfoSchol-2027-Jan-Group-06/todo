@@ -30,6 +30,8 @@ const MAPPING = {
   'xmark': 'close',
   'checkmark': 'check',
 
+  'pencil': 'edit',
+  'clock': 'schedule',
 } as IconMapping;
 
 /**
