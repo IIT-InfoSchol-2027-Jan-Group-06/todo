@@ -304,7 +304,7 @@ export default function HomeScreen() {
           <ScrollView contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
             {visible.map((todo) => (
               <ThemedView key={todo.id} style={[styles.todoRow, { backgroundColor: surface }]}>
-
+                <View style={styles.todoTopRow}>
                 <Pressable
                   onPress={() => toggleTodo(todo.id)}
                   hitSlop={8}
@@ -318,13 +318,11 @@ export default function HomeScreen() {
                   />
                 </Pressable>
                 <ThemedView style={styles.todoBody}>
-
                   <ThemedText
                     style={[styles.todoTitle, todo.completed && { color: colors.icon, textDecorationLine: 'line-through' }]}
                     numberOfLines={2}>
                     {todo.title}
                   </ThemedText>
-
                   {todo.deadline && (
                     <ThemedText style={[styles.deadlineText, { color: isOverdue(todo) ? danger : colors.icon }]}>
                       {isOverdue(todo) ? 'Overdue · ' : 'Due '}
@@ -332,6 +330,15 @@ export default function HomeScreen() {
                     </ThemedText>
                   )}
                 </ThemedView>
+                {todo.completed && (
+                  <Pressable
+                    onPress={() => attachImage(todo.id)}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Attach an image to ${todo.title}`}>
+                    <IconSymbol name="photo" size={22} color={tint} />
+                  </Pressable>
+                )}
                 <Pressable
                   onPress={() => setEditing(todo)}
                   hitSlop={8}
@@ -346,7 +353,20 @@ export default function HomeScreen() {
                   accessibilityLabel={`Delete ${todo.title}`}>
                   <IconSymbol name="trash" size={22} color={colors.icon} />
                 </Pressable>
-
+                </View>
+                {todo.imageUri ? (
+                  <View style={styles.imageContainer}>
+                    <Image source={{ uri: todo.imageUri }} style={styles.todoImage} contentFit="cover" />
+                    <Pressable
+                      onPress={() => removeImage(todo.id)}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove image from ${todo.title}`}
+                      style={styles.removeImage}>
+                      <IconSymbol name="xmark.circle.fill" size={22} color={colors.icon} />
+                    </Pressable>
+                  </View>
+                ) : null}
               </ThemedView>
             ))}
           </ScrollView>
@@ -443,7 +463,7 @@ const styles = StyleSheet.create({
 
   deadlineText: {
     fontSize: 12,
-
+  },
   imageContainer: {
     alignSelf: 'flex-start',
   },
