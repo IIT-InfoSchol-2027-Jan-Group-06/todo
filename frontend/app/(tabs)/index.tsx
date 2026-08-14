@@ -6,10 +6,13 @@ import {
   ScrollView,
   StyleSheet,
   TextInput,
+  View,
 } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
+import { Image } from 'expo-image';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -32,9 +35,13 @@ type Todo = {
   id: string;
   title: string;
   completed: boolean;
+
   deadline: number | null;
   alarmed: boolean;
   notificationId: string | null;
+
+  imageUri?: string | null;
+
 };
 
 let nextId = 1;
@@ -241,6 +248,22 @@ export default function HomeScreen() {
     setTodos((prev) => prev.filter((todo) => todo.id !== id));
   };
 
+  const attachImage = async (id: string) => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.5,
+    });
+    const uri = result.canceled ? undefined : result.assets[0]?.uri;
+    if (uri) {
+      setTodos((prev) => prev.map((todo) => (todo.id === id ? { ...todo, imageUri: uri } : todo)));
+    }
+  };
+
+  const removeImage = (id: string) => {
+    setTodos((prev) => prev.map((todo) => (todo.id === id ? { ...todo, imageUri: null } : todo)));
+  };
+
   const addButtonColor = colorScheme === 'dark' ? colors.background : '#fff';
 
   return (
@@ -281,6 +304,7 @@ export default function HomeScreen() {
           <ScrollView contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
             {visible.map((todo) => (
               <ThemedView key={todo.id} style={[styles.todoRow, { backgroundColor: surface }]}>
+
                 <Pressable
                   onPress={() => toggleTodo(todo.id)}
                   hitSlop={8}
@@ -294,11 +318,13 @@ export default function HomeScreen() {
                   />
                 </Pressable>
                 <ThemedView style={styles.todoBody}>
+
                   <ThemedText
                     style={[styles.todoTitle, todo.completed && { color: colors.icon, textDecorationLine: 'line-through' }]}
                     numberOfLines={2}>
                     {todo.title}
                   </ThemedText>
+
                   {todo.deadline && (
                     <ThemedText style={[styles.deadlineText, { color: isOverdue(todo) ? danger : colors.icon }]}>
                       {isOverdue(todo) ? 'Overdue · ' : 'Due '}
@@ -320,6 +346,7 @@ export default function HomeScreen() {
                   accessibilityLabel={`Delete ${todo.title}`}>
                   <IconSymbol name="trash" size={22} color={colors.icon} />
                 </Pressable>
+
               </ThemedView>
             ))}
           </ScrollView>
@@ -397,11 +424,14 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   todoRow: {
+    gap: 10,
+    padding: 14,
+    borderRadius: 12,
+  },
+  todoTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    padding: 14,
-    borderRadius: 12,
   },
   todoBody: {
     flex: 1,
@@ -410,8 +440,25 @@ const styles = StyleSheet.create({
   todoTitle: {
     fontSize: 16,
   },
+
   deadlineText: {
     fontSize: 12,
+
+  imageContainer: {
+    alignSelf: 'flex-start',
+  },
+  todoImage: {
+    width: 140,
+    height: 140,
+    borderRadius: 8,
+  },
+  removeImage: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: '#fff',
+    borderRadius: 11,
+
   },
   fab: {
     position: 'absolute',
