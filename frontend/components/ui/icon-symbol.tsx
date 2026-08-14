@@ -24,7 +24,12 @@ const MAPPING = {
   'circle': 'radio-button-unchecked',
   'trash': 'delete-outline',
   'plus': 'add',
+
   'magnifyingglass': 'search',
+
+  'xmark': 'close',
+  'checkmark': 'check',
+
 } as IconMapping;
 
 /**

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -27,7 +28,11 @@ let nextId = 1;
 export default function HomeScreen() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [input, setInput] = useState('');
+
   const [query, setQuery] = useState('');
+
+  const [isAdding, setIsAdding] = useState(false);
+
 
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
@@ -50,6 +55,18 @@ export default function HomeScreen() {
     setInput('');
   };
 
+  const submitTodo = () => {
+    addTodo();
+    Keyboard.dismiss();
+    setIsAdding(false);
+  };
+
+  const cancelAdding = () => {
+    Keyboard.dismiss();
+    setIsAdding(false);
+    setInput('');
+  };
+
   const toggleTodo = (id: string) => {
     setTodos((prev) => prev.map((todo) => (todo.id === id ? { ...todo, completed: !todo.completed } : todo)));
   };
@@ -62,8 +79,11 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <ThemedView style={styles.container}>
-        <ThemedView style={styles.header}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <ThemedView style={styles.container}>
+          <ThemedView style={styles.header}>
           <ThemedText type="title">Todos</ThemedText>
           <ThemedText style={{ color: colors.icon }}>
             {remaining} of {todos.length} remaining
@@ -124,27 +144,45 @@ export default function HomeScreen() {
           </ScrollView>
         )}
 
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        {isAdding ? (
           <ThemedView style={styles.inputBar}>
+            <Pressable
+              onPress={cancelAdding}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel adding todo"
+              style={styles.cancelButton}>
+              <IconSymbol name="xmark" size={22} color={colors.icon} />
+            </Pressable>
             <TextInput
+              autoFocus
               value={input}
               onChangeText={setInput}
-              onSubmitEditing={addTodo}
+              onSubmitEditing={submitTodo}
               placeholder="Add a new todo"
               placeholderTextColor={colors.icon}
               returnKeyType="done"
               style={[styles.input, { color: colors.text, backgroundColor: surface }]}
             />
             <Pressable
-              onPress={addTodo}
+              onPress={submitTodo}
               accessibilityRole="button"
               accessibilityLabel="Add todo"
               style={[styles.addButton, { backgroundColor: tint }]}>
-              <IconSymbol name="plus" size={26} color={addButtonColor} />
+              <IconSymbol name="checkmark" size={26} color={addButtonColor} />
             </Pressable>
           </ThemedView>
-        </KeyboardAvoidingView>
-      </ThemedView>
+        ) : (
+          <Pressable
+            onPress={() => setIsAdding(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Add a new todo"
+            style={[styles.fab, { backgroundColor: tint }]}>
+            <IconSymbol name="plus" size={28} color={addButtonColor} />
+          </Pressable>
+        )}
+        </ThemedView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -178,7 +216,7 @@ const styles = StyleSheet.create({
   },
   list: {
     paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingBottom: 24,
     gap: 10,
   },
   empty: {
@@ -198,6 +236,21 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
   },
+  fab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
   inputBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -205,6 +258,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 16,
+  },
+  cancelButton: {
+    padding: 4,
   },
   input: {
     flex: 1,
