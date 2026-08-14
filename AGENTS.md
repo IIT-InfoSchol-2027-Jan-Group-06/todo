@@ -1,3 +1,12 @@
-# Expo HAS CHANGED
+# project overview
 
-Read the exact versioned docs at https://docs.expo.dev/versions/v54.0.0/ before writing any code.
+--were building a todo app with five features
+    --Basic Todo Application
+    --Search a Todo Item
+    --Deadline + alarm
+    --Upload an image to a Todo Item
+    --Save todo items via a Node.js API, backed by H2
+
+
+
+
