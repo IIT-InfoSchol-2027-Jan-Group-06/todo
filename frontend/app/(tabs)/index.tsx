@@ -27,6 +27,7 @@ let nextId = 1;
 export default function HomeScreen() {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [input, setInput] = useState('');
+  const [query, setQuery] = useState('');
 
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
@@ -34,6 +35,11 @@ export default function HomeScreen() {
   const surface = useThemeColor({ light: '#F2F3F5', dark: '#1D1F20' }, 'background');
 
   const remaining = todos.filter((todo) => !todo.completed).length;
+
+  // ponytail: filter on every keystroke, no debounce/useMemo. The list is in memory.
+  // Debounce when it comes from an API, or memoise past a few thousand todos.
+  const q = query.trim().toLowerCase();
+  const visible = todos.filter((todo) => todo.title.toLowerCase().includes(q));
 
   const addTodo = () => {
     const title = input.trim();
@@ -64,14 +70,30 @@ export default function HomeScreen() {
           </ThemedText>
         </ThemedView>
 
-        {todos.length === 0 ? (
+        <ThemedView style={[styles.searchBar, { backgroundColor: surface }]}>
+          <IconSymbol name="magnifyingglass" size={20} color={colors.icon} />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search todos"
+            placeholderTextColor={colors.icon}
+            clearButtonMode="while-editing"
+            returnKeyType="search"
+            accessibilityLabel="Search todos"
+            style={[styles.searchField, { color: colors.text }]}
+          />
+        </ThemedView>
+
+        {visible.length === 0 ? (
           <ThemedView style={styles.empty}>
-            <IconSymbol name="checklist" size={48} color={colors.icon} />
-            <ThemedText style={{ color: colors.icon }}>No todos yet. Add one below.</ThemedText>
+            <IconSymbol name={q ? 'magnifyingglass' : 'checklist'} size={48} color={colors.icon} />
+            <ThemedText style={{ color: colors.icon }}>
+              {q ? `No todos match "${query.trim()}".` : 'No todos yet. Add one below.'}
+            </ThemedText>
           </ThemedView>
         ) : (
           <ScrollView contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
-            {todos.map((todo) => (
+            {visible.map((todo) => (
               <ThemedView key={todo.id} style={[styles.todoRow, { backgroundColor: surface }]}>
                 <Pressable
                   onPress={() => toggleTodo(todo.id)}
@@ -139,6 +161,20 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 12,
     gap: 4,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginHorizontal: 20,
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+  },
+  searchField: {
+    flex: 1,
+    paddingVertical: 12,
+    fontSize: 16,
   },
   list: {
     paddingHorizontal: 20,

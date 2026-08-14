@@ -24,6 +24,7 @@ const MAPPING = {
   'circle': 'radio-button-unchecked',
   'trash': 'delete-outline',
   'plus': 'add',
+  'magnifyingglass': 'search',
 } as IconMapping;
 
 /**
